@@ -63,3 +63,29 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     worker: WorkerResponse
+
+
+class WorkerProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    profession: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and len(v.strip()) < 2:
+            raise ValueError("Name must be at least 2 characters")
+        return v.strip() if v else v
+
+
+class PublicWorkerResponse(BaseModel):
+    id: UUID
+    name: str
+    profession: Optional[str] = None
+    avatar_url: Optional[str] = None
+    qr_code_url: Optional[str] = None
+
+
+class QRCodeResponse(BaseModel):
+    qr_code_url: str
+    tip_url: str
