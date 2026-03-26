@@ -118,3 +118,46 @@ async def get_worker_by_id(
         (worker_id,),
     )
     return _row_to_worker_by_id_dict(await row.fetchone())
+
+
+async def update_worker_profile(
+    db: AsyncConnection,
+    worker_id: str,
+    name: Optional[str] = None,
+    profession: Optional[str] = None,
+    email: Optional[str] = None,
+):
+    row = await db.execute(
+        """
+        UPDATE workers
+        SET
+            name        = COALESCE(%s, name),
+            profession  = COALESCE(%s, profession),
+            email       = COALESCE(%s, email)
+        WHERE id = %s AND is_active = true
+        RETURNING id, name, phone, email, profession,
+                  avatar_url, qr_code_url, nfc_enabled,
+                  is_active, created_at
+        """,
+        (name, profession, email, worker_id),
+    )
+    return _row_to_worker_by_id_dict(await row.fetchone())
+
+
+async def update_worker_qr(
+    db: AsyncConnection,
+    worker_id: str,
+    qr_code_url: str,
+):
+    row = await db.execute(
+        """
+        UPDATE workers
+        SET qr_code_url = %s
+        WHERE id = %s AND is_active = true
+        RETURNING id, name, phone, email, profession,
+                  avatar_url, qr_code_url, nfc_enabled,
+                  is_active, created_at
+        """,
+        (qr_code_url, worker_id),
+    )
+    return _row_to_worker_by_id_dict(await row.fetchone())

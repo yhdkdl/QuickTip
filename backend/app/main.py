@@ -1,10 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 from app.core.config import get_settings
 from app.core.database import connect_db, disconnect_db
 from app.api.v1 import auth
+from app.api.v1 import workers
 
 settings = get_settings()
 
@@ -39,6 +41,9 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+app.include_router(workers.router, prefix="/api/v1/workers", tags=["Workers"])
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/health")
 async def health_check():
