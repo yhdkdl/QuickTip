@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from app.core.config import get_settings
 from app.core.database import connect_db, disconnect_db
+from app.api.v1 import auth
 
 settings = get_settings()
 
@@ -37,6 +38,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 
 @app.get("/health")
 async def health_check():
