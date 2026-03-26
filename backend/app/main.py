@@ -7,6 +7,7 @@ from app.core.config import get_settings
 from app.core.database import connect_db, disconnect_db
 from app.api.v1 import auth
 from app.api.v1 import workers
+from app.api.v1 import tips
 
 settings = get_settings()
 
@@ -42,6 +43,7 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(workers.router, prefix="/api/v1/workers", tags=["Workers"])
+app.include_router(tips.router, prefix="/api/v1/tips", tags=["Tips"])
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
