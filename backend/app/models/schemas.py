@@ -89,3 +89,42 @@ class PublicWorkerResponse(BaseModel):
 class QRCodeResponse(BaseModel):
     qr_code_url: str
     tip_url: str
+
+
+class TipInitiate(BaseModel):
+    worker_id: str
+    amount: float
+    customer_phone: str
+    initiated_via: str = "qr"
+
+    @field_validator("amount")
+    @classmethod
+    def validate_amount(cls, v: float) -> float:
+        if v < 1:
+            raise ValueError("Minimum tip amount is KES 1")
+        if v > 150000:
+            raise ValueError("Maximum tip amount is KES 150,000")
+        return round(v, 2)
+
+    @field_validator("customer_phone")
+    @classmethod
+    def validate_customer_phone(cls, v: str) -> str:
+        pattern = r"^2547\d{8}$|^2541\d{8}$"
+        if not re.match(pattern, v):
+            raise ValueError("Phone must be in format 2547XXXXXXXX")
+        return v
+
+    @field_validator("initiated_via")
+    @classmethod
+    def validate_initiated_via(cls, v: str) -> str:
+        if v not in ["qr", "nfc"]:
+            raise ValueError("initiated_via must be qr or nfc")
+        return v
+
+
+class TipSessionResponse(BaseModel):
+    session_id: str
+    status: str
+    amount: float
+    worker_name: str
+    message: str
