@@ -65,6 +65,31 @@ def _row_to_worker_by_id_dict(row) -> Optional[dict]:
     }
 
 
+def _row_to_worker_with_payout_dict(row) -> Optional[dict]:
+    if row is None:
+        return None
+    if hasattr(row, "keys") and "id" in row:
+        return dict(row)
+    return {
+        "id": row[0],
+        "name": row[1],
+        "phone": row[2],
+        "email": row[3],
+        "profession": row[4],
+        "avatar_url": row[5],
+        "qr_code_url": row[6],
+        "nfc_enabled": row[7],
+        "is_active": row[8],
+        "created_at": row[9],
+        "payout_id": row[10],
+        "payout_method": row[11],
+        "telebirr_phone": row[12],
+        "bank_name": row[13],
+        "account_number": row[14],
+        "account_name": row[15],
+    }
+
+
 async def create_worker(
     db: AsyncConnection,
     name: str,
@@ -161,3 +186,28 @@ async def update_worker_qr(
         (qr_code_url, worker_id),
     )
     return _row_to_worker_by_id_dict(await row.fetchone())
+
+async def get_worker_with_payout(
+    db: AsyncConnection,
+    worker_id: str,
+):
+    row = await db.execute(
+        """
+        SELECT
+            w.id, w.name, w.phone, w.email,
+            w.profession, w.avatar_url, w.qr_code_url,
+            w.nfc_enabled, w.is_active, w.created_at,
+            pa.id          AS payout_id,
+            pa.method      AS payout_method,
+            pa.telebirr_phone,
+            pa.bank_name,
+            pa.account_number,
+            pa.account_name
+        FROM workers w
+        LEFT JOIN payout_accounts pa
+            ON pa.worker_id = w.id AND pa.is_active = true
+        WHERE w.id = %s AND w.is_active = true
+        """,
+        (worker_id,)
+    )
+    return _row_to_worker_with_payout_dict(await row.fetchone())

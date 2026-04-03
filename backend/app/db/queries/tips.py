@@ -4,6 +4,70 @@ from app.core.config import get_settings
 settings = get_settings()
 
 
+def _row_to_tip_session_dict(row):
+    if row is None:
+        return None
+    if hasattr(row, "keys") and "id" in row:
+        return dict(row)
+    return {
+        "id": row[0],
+        "worker_id": row[1],
+        "amount": row[2],
+        "customer_phone": row[3],
+        "status": row[4],
+        "initiated_via": row[5],
+        "created_at": row[6],
+    }
+
+
+def _row_to_session_with_worker_dict(row):
+    if row is None:
+        return None
+    if hasattr(row, "keys") and "id" in row:
+        return dict(row)
+    return {
+        "id": row[0],
+        "worker_id": row[1],
+        "amount": row[2],
+        "customer_phone": row[3],
+        "payment_checkout_id": row[4],
+        "status": row[5],
+        "initiated_via": row[6],
+        "created_at": row[7],
+        "completed_at": row[8],
+        "worker_name": row[9],
+    }
+
+
+def _row_to_session_short_dict(row):
+    if row is None:
+        return None
+    if hasattr(row, "keys") and "id" in row:
+        return dict(row)
+    return {
+        "id": row[0],
+        "worker_id": row[1],
+        "amount": row[2],
+        "customer_phone": row[3],
+        "payment_checkout_id": row[4],
+        "status": row[5],
+    }
+
+
+def _row_to_tip_dict(row):
+    if row is None:
+        return None
+    if hasattr(row, "keys") and "id" in row:
+        return dict(row)
+    return {
+        "id": row[0],
+        "gross_amount": row[1],
+        "platform_fee": row[2],
+        "worker_payout": row[3],
+        "payment_reference": row[4],
+    }
+
+
 async def create_tip_session(
     db: AsyncConnection,
     worker_id: str,
@@ -21,7 +85,7 @@ async def create_tip_session(
         """,
         (worker_id, amount, customer_phone, initiated_via)
     )
-    return await row.fetchone()
+    return _row_to_tip_session_dict(await row.fetchone())
 
 
 async def update_session_checkout_id(
@@ -62,7 +126,7 @@ async def get_session_by_id(
         """,
         (session_id,)
     )
-    return await row.fetchone()
+    return _row_to_session_with_worker_dict(await row.fetchone())
 
 
 async def get_session_by_tx_ref(
@@ -79,7 +143,7 @@ async def get_session_by_tx_ref(
         """,
         (session_id,)
     )
-    return await row.fetchone()
+    return _row_to_session_short_dict(await row.fetchone())
 
 
 async def update_session_status(
@@ -122,7 +186,7 @@ async def create_confirmed_tip(
         (session_id, worker_id, gross_amount,
          platform_fee, worker_payout, payment_reference)
     )
-    return await row.fetchone()
+    return _row_to_tip_dict(await row.fetchone())
 
 
 async def create_notification(
