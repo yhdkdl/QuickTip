@@ -1,9 +1,8 @@
-from datetime import datetime
-import re
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
 from uuid import UUID
-
-from pydantic import BaseModel, EmailStr, field_validator
+from datetime import datetime
+import re
 
 
 class WorkerRegister(BaseModel):
@@ -15,27 +14,22 @@ class WorkerRegister(BaseModel):
 
     @field_validator("phone")
     @classmethod
-    def validate_phone(cls, v: str) -> str:
-        # Kenyan Safaricom format: 2547XXXXXXXX or 2541XXXXXXXX
-        pattern = r"^2547\d{8}$|^2541\d{8}$"
+    def validate_phone(cls, v):
+        pattern = r"^2519\d{8}$|^2517\d{8}$|^09\d{8}$|^07\d{8}$"
         if not re.match(pattern, v):
-            raise ValueError("Phone must be in format 2547XXXXXXXX or 2541XXXXXXXX")
+            raise ValueError("Phone must be a valid Ethiopian number e.g. 0911234567")
         return v
 
     @field_validator("password")
     @classmethod
-    def validate_password(cls, v: str) -> str:
+    def validate_password(cls, v):
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters")
-        # bcrypt silently fails if the password is longer than 72 bytes (UTF-8).
-        # Enforce this at the API boundary so /register returns a 422 instead of 500.
-        if len(v.encode("utf-8")) > 72:
-            raise ValueError("Password must be at most 72 UTF-8 bytes")
         return v
 
     @field_validator("name")
     @classmethod
-    def validate_name(cls, v: str) -> str:
+    def validate_name(cls, v):
         if len(v.strip()) < 2:
             raise ValueError("Name must be at least 2 characters")
         return v.strip()
@@ -72,7 +66,7 @@ class WorkerProfileUpdate(BaseModel):
 
     @field_validator("name")
     @classmethod
-    def validate_name(cls, v: Optional[str]) -> Optional[str]:
+    def validate_name(cls, v):
         if v is not None and len(v.strip()) < 2:
             raise ValueError("Name must be at least 2 characters")
         return v.strip() if v else v
@@ -95,28 +89,29 @@ class TipInitiate(BaseModel):
     worker_id: str
     amount: float
     customer_phone: str
+    customer_email: Optional[str] = None
     initiated_via: str = "qr"
 
     @field_validator("amount")
     @classmethod
-    def validate_amount(cls, v: float) -> float:
+    def validate_amount(cls, v):
         if v < 1:
-            raise ValueError("Minimum tip amount is KES 1")
-        if v > 150000:
-            raise ValueError("Maximum tip amount is KES 150,000")
+            raise ValueError("Minimum tip amount is ETB 1")
+        if v > 100000:
+            raise ValueError("Maximum tip amount is ETB 100,000")
         return round(v, 2)
 
     @field_validator("customer_phone")
     @classmethod
-    def validate_customer_phone(cls, v: str) -> str:
-        pattern = r"^2547\d{8}$|^2541\d{8}$"
+    def validate_customer_phone(cls, v):
+        pattern = r"^2519\d{8}$|^2517\d{8}$|^09\d{8}$|^07\d{8}$"
         if not re.match(pattern, v):
-            raise ValueError("Phone must be in format 2547XXXXXXXX")
+            raise ValueError("Phone must be a valid Ethiopian number")
         return v
 
     @field_validator("initiated_via")
     @classmethod
-    def validate_initiated_via(cls, v: str) -> str:
+    def validate_initiated_via(cls, v):
         if v not in ["qr", "nfc"]:
             raise ValueError("initiated_via must be qr or nfc")
         return v
@@ -127,4 +122,21 @@ class TipSessionResponse(BaseModel):
     status: str
     amount: float
     worker_name: str
+    message: str
+    checkout_url: Optional[str] = None
+
+
+class ChapaWebhookPayload(BaseModel):
+    event: Optional[str] = None
+    tx_ref: str
+    status: str
+
+
+class WebSocketMessage(BaseModel):
+    type: str
+    session_id: str
+    status: str
+    amount: Optional[float] = None
+    worker_name: Optional[str] = None
+    payment_reference: Optional[str] = None
     message: str

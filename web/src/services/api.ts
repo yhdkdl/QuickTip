@@ -14,12 +14,14 @@ export interface TipSession {
   amount: number;
   worker_name: string;
   message: string;
+  checkout_url?: string;
 }
 
 export interface TipPayload {
   worker_id: string;
   amount: number;
   customer_phone: string;
+  customer_email?: string;
   initiated_via: string;
 }
 
@@ -51,4 +53,3 @@ export async function getSessionStatus(sessionId: string): Promise<TipSession> {
   if (!res.ok) throw new Error("Session not found");
   return res.json();
 }
-

@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from psycopg import AsyncConnection
 
 from app.core.database import get_db
+from app.models.schemas import TipInitiate, TipSessionResponse
 from app.db.queries.tips import (
     create_tip_session,
-    get_session_by_id,
     update_session_checkout_id,
+    get_session_by_id,
 )
 from app.db.queries.workers import get_worker_by_id
-from app.models.schemas import TipInitiate, TipSessionResponse
-from app.services.mpesa_service import stk_push
+from app.services.chapa_service import initialize_payment
 
 router = APIRouter()
 
@@ -23,7 +23,7 @@ async def initiate_tip(
     if not worker:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Worker not found",
+            detail="Worker not found"
         )
 
     session = await create_tip_session(
@@ -36,26 +36,28 @@ async def initiate_tip(
     await db.commit()
 
     try:
-        daraja_response = await stk_push(
-            phone=payload.customer_phone,
+        chapa_response = await initialize_payment(
             amount=payload.amount,
+            customer_phone=payload.customer_phone,
             session_id=str(session["id"]),
             worker_name=worker["name"],
+            customer_email=payload.customer_email,
         )
 
-        checkout_request_id = daraja_response.get("CheckoutRequestID")
-        if checkout_request_id:
+        checkout_url = chapa_response.get("data", {}).get("checkout_url")
+
+        if checkout_url:
             await update_session_checkout_id(
                 db=db,
                 session_id=str(session["id"]),
-                checkout_request_id=checkout_request_id,
+                checkout_id=checkout_url,
             )
             await db.commit()
 
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Payment gateway error: {str(e)}",
+            detail=f"Payment gateway error: {str(e)}"
         )
 
     return TipSessionResponse(
@@ -63,7 +65,8 @@ async def initiate_tip(
         status="pending",
         amount=float(session["amount"]),
         worker_name=worker["name"],
-        message="STK Push sent. Please check your phone and enter your M-Pesa PIN.",
+        checkout_url=checkout_url,
+        message="Redirecting to Chapa payment page...",
     )
 
 
@@ -77,7 +80,7 @@ async def get_session_status(
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found",
+            detail="Session not found"
         )
 
     messages = {
@@ -94,4 +97,3 @@ async def get_session_status(
         worker_name=session["worker_name"],
         message=messages.get(session["status"], "Processing..."),
     )
-
