@@ -5,9 +5,7 @@ from contextlib import asynccontextmanager
 
 from app.core.config import get_settings
 from app.core.database import connect_db, disconnect_db
-from app.api.v1 import auth
-from app.api.v1 import workers
-from app.api.v1 import tips
+from app.api.v1 import auth, workers, tips, chapa, websocket
 
 settings = get_settings()
 
@@ -23,7 +21,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.app_name,
-    description="M-Pesa tipping platform API",
+    description="Ethiopian tipping platform API",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -44,13 +42,16 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(workers.router, prefix="/api/v1/workers", tags=["Workers"])
 app.include_router(tips.router, prefix="/api/v1/tips", tags=["Tips"])
+app.include_router(chapa.router, prefix="/api/v1/chapa", tags=["Chapa"])
+app.include_router(websocket.router, tags=["WebSocket"])
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/health")
 async def health_check():
     return {
         "status": "ok",
         "app": settings.app_name,
-        "environment": settings.daraja_env
+        "environment": settings.chapa_env
     }

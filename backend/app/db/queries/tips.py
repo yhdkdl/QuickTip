@@ -1,57 +1,7 @@
-from typing import Optional
-
 from psycopg import AsyncConnection
+from app.core.config import get_settings
 
-
-def _row_to_tip_session_dict(row) -> Optional[dict]:
-    if row is None:
-        return None
-
-    if hasattr(row, "keys") and "id" in row:
-        return dict(row)
-
-    # CREATE:
-    # RETURNING id, worker_id, amount, customer_phone,
-    #           status, initiated_via, created_at
-    #
-    # get_session_by_id selects:
-    #  ts.id,
-    #  ts.worker_id,
-    #  ts.amount,
-    #  ts.customer_phone,
-    #  ts.mpesa_checkout_request_id,
-    #  ts.status,
-    #  ts.initiated_via,
-    #  ts.created_at,
-    #  ts.completed_at,
-    #  w.name as worker_name
-    if len(row) == 7:
-        return {
-            "id": row[0],
-            "worker_id": row[1],
-            "amount": row[2],
-            "customer_phone": row[3],
-            "status": row[4],
-            "initiated_via": row[5],
-            "created_at": row[6],
-        }
-
-    if len(row) >= 10:
-        return {
-            "id": row[0],
-            "worker_id": row[1],
-            "amount": row[2],
-            "customer_phone": row[3],
-            "mpesa_checkout_request_id": row[4],
-            "status": row[5],
-            "initiated_via": row[6],
-            "created_at": row[7],
-            "completed_at": row[8],
-            "worker_name": row[9],
-        }
-
-    # Fallback to a minimal mapping (better than crashing)
-    return {"id": row[0]}  # pragma: no cover
+settings = get_settings()
 
 
 async def create_tip_session(
@@ -69,23 +19,23 @@ async def create_tip_session(
         RETURNING id, worker_id, amount, customer_phone,
                   status, initiated_via, created_at
         """,
-        (worker_id, amount, customer_phone, initiated_via),
+        (worker_id, amount, customer_phone, initiated_via)
     )
-    return _row_to_tip_session_dict(await row.fetchone())
+    return await row.fetchone()
 
 
 async def update_session_checkout_id(
     db: AsyncConnection,
     session_id: str,
-    checkout_request_id: str,
+    checkout_id: str,
 ):
     await db.execute(
         """
         UPDATE tip_sessions
-        SET mpesa_checkout_request_id = %s
+        SET payment_checkout_id = %s
         WHERE id = %s
         """,
-        (checkout_request_id, session_id),
+        (checkout_id, session_id)
     )
 
 
@@ -100,7 +50,7 @@ async def get_session_by_id(
             ts.worker_id,
             ts.amount,
             ts.customer_phone,
-            ts.mpesa_checkout_request_id,
+            ts.payment_checkout_id,
             ts.status,
             ts.initiated_via,
             ts.created_at,
@@ -110,35 +60,81 @@ async def get_session_by_id(
         JOIN workers w ON w.id = ts.worker_id
         WHERE ts.id = %s
         """,
-        (session_id,),
+        (session_id,)
     )
-    return _row_to_tip_session_dict(await row.fetchone())
+    return await row.fetchone()
 
 
-async def get_session_by_checkout_id(
+async def get_session_by_tx_ref(
     db: AsyncConnection,
-    checkout_request_id: str,
+    tx_ref: str,
 ):
+    session_id = tx_ref.replace("quicktip-", "")
     row = await db.execute(
         """
         SELECT id, worker_id, amount, customer_phone,
-               mpesa_checkout_request_id, status
+               payment_checkout_id, status
         FROM tip_sessions
-        WHERE mpesa_checkout_request_id = %s
+        WHERE id = %s
         """,
-        (checkout_request_id,),
+        (session_id,)
     )
-    r = await row.fetchone()
-    if r is None:
-        return None
-    if hasattr(r, "keys") and "id" in r:
-        return dict(r)
-    return {
-        "id": r[0],
-        "worker_id": r[1],
-        "amount": r[2],
-        "customer_phone": r[3],
-        "mpesa_checkout_request_id": r[4],
-        "status": r[5],
-    }
+    return await row.fetchone()
 
+
+async def update_session_status(
+    db: AsyncConnection,
+    session_id: str,
+    status: str,
+):
+    await db.execute(
+        """
+        UPDATE tip_sessions
+        SET
+            status       = %s,
+            completed_at = NOW()
+        WHERE id = %s
+        """,
+        (status, session_id)
+    )
+
+
+async def create_confirmed_tip(
+    db: AsyncConnection,
+    session_id: str,
+    worker_id: str,
+    gross_amount: float,
+    payment_reference: str,
+):
+    fee_percent = settings.platform_fee_percent
+    platform_fee = round(gross_amount * fee_percent / 100, 2)
+    worker_payout = round(gross_amount - platform_fee, 2)
+
+    row = await db.execute(
+        """
+        INSERT INTO tips
+            (session_id, worker_id, gross_amount,
+             platform_fee, worker_payout, payment_reference)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        RETURNING id, gross_amount, platform_fee,
+                  worker_payout, payment_reference
+        """,
+        (session_id, worker_id, gross_amount,
+         platform_fee, worker_payout, payment_reference)
+    )
+    return await row.fetchone()
+
+
+async def create_notification(
+    db: AsyncConnection,
+    worker_id: str,
+    title: str,
+    message: str,
+):
+    await db.execute(
+        """
+        INSERT INTO notifications (worker_id, title, message)
+        VALUES (%s, %s, %s)
+        """,
+        (worker_id, title, message)
+    )
