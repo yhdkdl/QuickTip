@@ -22,6 +22,7 @@ async def initialize_payment(
     customer_email: Optional[str] = None,
 ) -> dict:
     tx_ref = f"quicktip-{session_id}"
+
     return_url = (
         f"{settings.frontend_url}/tip/success"
         f"?session_id={session_id}&tx_ref={tx_ref}"
@@ -75,7 +76,7 @@ async def verify_payment(tx_ref: str) -> dict:
 async def transfer_to_telebirr(
     amount: float,
     phone: str,
-    reference: str,
+    payout_id: str,
     worker_name: str,
 ) -> dict:
     payload = {
@@ -83,7 +84,7 @@ async def transfer_to_telebirr(
         "account_number": phone,
         "amount": str(round(amount, 2)),
         "currency": "ETB",
-        "reference": reference,
+        "reference": f"payout-{payout_id}",
         "bank_code": "TELEBIRR",
     }
 
@@ -103,14 +104,14 @@ async def transfer_to_bank(
     account_number: str,
     account_name: str,
     bank_name: str,
-    reference: str,
+    payout_id: str,
 ) -> dict:
     payload = {
         "account_name": account_name,
         "account_number": account_number,
         "amount": str(round(amount, 2)),
         "currency": "ETB",
-        "reference": reference,
+        "reference": f"payout-{payout_id}",
         "bank_code": bank_name,
     }
 
@@ -128,12 +129,10 @@ async def transfer_to_bank(
 async def refund_payment(
     tx_ref: str,
     amount: float,
-    reason: str = "Payout failed after 3 attempts",
 ) -> dict:
     payload = {
         "tx_ref": tx_ref,
         "amount": str(round(amount, 2)),
-        "reason": reason,
     }
 
     async with httpx.AsyncClient() as client:

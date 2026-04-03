@@ -1,3 +1,4 @@
+from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 from app.core.config import get_settings
 
@@ -10,6 +11,7 @@ async def connect_db():
     global pool
     pool = AsyncConnectionPool(
         conninfo=settings.database_url,
+        kwargs={"row_factory": dict_row},
         min_size=2,
         max_size=10,
     )

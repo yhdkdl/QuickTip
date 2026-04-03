@@ -5,57 +5,51 @@ from datetime import datetime
 import re
 
 
-class PayoutMethodBase(BaseModel):
+def validate_ethiopian_phone(v: str) -> str:
+    pattern = r"^(09|07)\d{8}$|^(2519|2517)\d{8}$"
+    if not re.match(pattern, v):
+        raise ValueError(
+            "Phone must be a valid Ethiopian number e.g. 0911234567"
+        )
+    return v
+
+
+class PayoutAccountCreate(BaseModel):
     method: str
+    telebirr_phone: Optional[str] = None
+    bank_name: Optional[str] = None
+    account_number: Optional[str] = None
+    account_name: Optional[str] = None
 
     @field_validator("method")
     @classmethod
     def validate_method(cls, v):
         if v not in ["telebirr", "bank"]:
-            raise ValueError("Payout method must be 'telebirr' or 'bank'")
+            raise ValueError("method must be telebirr or bank")
         return v
 
+    @model_validator(mode="after")
+    def validate_payout_details(self):
+        if self.method == "telebirr":
+            if not self.telebirr_phone:
+                raise ValueError(
+                    "telebirr_phone is required for Telebirr payouts"
+                )
+            validate_ethiopian_phone(self.telebirr_phone)
 
-class TelebirrPayout(PayoutMethodBase):
-    method: str = "telebirr"
-    telebirr_phone: str
-
-    @field_validator("telebirr_phone")
-    @classmethod
-    def validate_telebirr_phone(cls, v):
-        pattern = r"^(09|07)\d{8}$|^(2519|2517)\d{8}$"
-        if not re.match(pattern, v):
-            raise ValueError("Telebirr phone must be a valid Ethiopian number")
-        return v
-
-
-class BankPayout(PayoutMethodBase):
-    method: str = "bank"
-    bank_name: str
-    account_number: str
-    account_name: str
-
-    @field_validator("bank_name")
-    @classmethod
-    def validate_bank_name(cls, v):
-        if len(v.strip()) < 2:
-            raise ValueError("Bank name is required")
-        return v.strip()
-
-    @field_validator("account_number")
-    @classmethod
-    def validate_account_number(cls, v):
-        cleaned = v.replace(" ", "").replace("-", "")
-        if len(cleaned) < 5:
-            raise ValueError("Invalid account number")
-        return cleaned
-
-    @field_validator("account_name")
-    @classmethod
-    def validate_account_name(cls, v):
-        if len(v.strip()) < 2:
-            raise ValueError("Account name is required")
-        return v.strip()
+        if self.method == "bank":
+            missing = []
+            if not self.bank_name:
+                missing.append("bank_name")
+            if not self.account_number:
+                missing.append("account_number")
+            if not self.account_name:
+                missing.append("account_name")
+            if missing:
+                raise ValueError(
+                    f"Bank payout requires: {', '.join(missing)}"
+                )
+        return self
 
 
 class WorkerRegister(BaseModel):
@@ -64,23 +58,12 @@ class WorkerRegister(BaseModel):
     email: Optional[EmailStr] = None
     password: str
     profession: Optional[str] = None
-
-    # Payout fields
-    payout_method: str
-    telebirr_phone: Optional[str] = None
-    bank_name: Optional[str] = None
-    account_number: Optional[str] = None
-    account_name: Optional[str] = None
+    payout: PayoutAccountCreate
 
     @field_validator("phone")
     @classmethod
     def validate_phone(cls, v):
-        pattern = r"^(09|07)\d{8}$|^(2519|2517)\d{8}$"
-        if not re.match(pattern, v):
-            raise ValueError(
-                "Phone must be a valid Ethiopian number e.g. 0911234567"
-            )
-        return v
+        return validate_ethiopian_phone(v)
 
     @field_validator("password")
     @classmethod
@@ -95,39 +78,6 @@ class WorkerRegister(BaseModel):
         if len(v.strip()) < 2:
             raise ValueError("Name must be at least 2 characters")
         return v.strip()
-
-    @field_validator("payout_method")
-    @classmethod
-    def validate_payout_method(cls, v):
-        if v not in ["telebirr", "bank"]:
-            raise ValueError("payout_method must be 'telebirr' or 'bank'")
-        return v
-
-    @model_validator(mode="after")
-    def validate_payout_details(self):
-        if self.payout_method == "telebirr":
-            if not self.telebirr_phone:
-                raise ValueError(
-                    "telebirr_phone is required when payout_method is 'telebirr'"
-                )
-            pattern = r"^(09|07)\d{8}$|^(2519|2517)\d{8}$"
-            if not re.match(pattern, self.telebirr_phone):
-                raise ValueError("Invalid Telebirr phone number")
-
-        if self.payout_method == "bank":
-            if not self.bank_name:
-                raise ValueError(
-                    "bank_name is required when payout_method is 'bank'"
-                )
-            if not self.account_number:
-                raise ValueError(
-                    "account_number is required when payout_method is 'bank'"
-                )
-            if not self.account_name:
-                raise ValueError(
-                    "account_name is required when payout_method is 'bank'"
-                )
-        return self
 
 
 class WorkerLogin(BaseModel):
@@ -209,10 +159,7 @@ class TipInitiate(BaseModel):
     @field_validator("customer_phone")
     @classmethod
     def validate_customer_phone(cls, v):
-        pattern = r"^(09|07)\d{8}$|^(2519|2517)\d{8}$"
-        if not re.match(pattern, v):
-            raise ValueError("Phone must be a valid Ethiopian number")
-        return v
+        return validate_ethiopian_phone(v)
 
     @field_validator("initiated_via")
     @classmethod
@@ -245,14 +192,3 @@ class WebSocketMessage(BaseModel):
     worker_name: Optional[str] = None
     payment_reference: Optional[str] = None
     message: str
-
-
-class PayoutResponse(BaseModel):
-    id: UUID
-    tip_id: UUID
-    amount: float
-    method: str
-    status: str
-    attempts: int
-    failure_reason: Optional[str] = None
-    created_at: datetime

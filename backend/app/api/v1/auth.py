@@ -14,10 +14,7 @@ from app.db.queries.workers import (
     get_worker_by_phone,
     get_worker_with_payout,
 )
-from app.db.queries.payouts import (
-    create_payout_account,
-    get_payout_account_by_worker,
-)
+from app.db.queries.payouts import create_payout_account
 from app.services.auth_service import (
     hash_password,
     verify_password,
@@ -28,29 +25,31 @@ from app.api.v1.deps import get_current_worker
 router = APIRouter()
 
 
-def build_worker_response(worker_row, payout_row=None) -> WorkerResponse:
+def build_worker_response(row) -> WorkerResponse:
+    data = dict(row)
+
     payout = None
-    if payout_row:
+    if data.get("payout_id"):
         payout = PayoutAccountResponse(
-            id=payout_row["id"],
-            method=payout_row["method"],
-            telebirr_phone=payout_row.get("telebirr_phone"),
-            bank_name=payout_row.get("bank_name"),
-            account_number=payout_row.get("account_number"),
-            account_name=payout_row.get("account_name"),
+            id=data["payout_id"],
+            method=data["payout_method"],
+            telebirr_phone=data.get("telebirr_phone"),
+            bank_name=data.get("bank_name"),
+            account_number=data.get("account_number"),
+            account_name=data.get("account_name"),
         )
 
     return WorkerResponse(
-        id=worker_row["id"],
-        name=worker_row["name"],
-        phone=worker_row["phone"],
-        email=worker_row.get("email"),
-        profession=worker_row.get("profession"),
-        avatar_url=worker_row.get("avatar_url"),
-        qr_code_url=worker_row.get("qr_code_url"),
-        nfc_enabled=worker_row["nfc_enabled"],
-        is_active=worker_row["is_active"],
-        created_at=worker_row["created_at"],
+        id=data["id"],
+        name=data["name"],
+        phone=data["phone"],
+        email=data.get("email"),
+        profession=data.get("profession"),
+        avatar_url=data.get("avatar_url"),
+        qr_code_url=data.get("qr_code_url"),
+        nfc_enabled=data["nfc_enabled"],
+        is_active=data["is_active"],
+        created_at=data["created_at"],
         payout_account=payout,
     )
 
@@ -82,23 +81,24 @@ async def register(
         profession=payload.profession,
     )
 
-    payout = await create_payout_account(
+    await create_payout_account(
         db=db,
         worker_id=str(worker["id"]),
-        method=payload.payout_method,
-        telebirr_phone=payload.telebirr_phone,
-        bank_name=payload.bank_name,
-        account_number=payload.account_number,
-        account_name=payload.account_name,
+        method=payload.payout.method,
+        telebirr_phone=payload.payout.telebirr_phone,
+        bank_name=payload.payout.bank_name,
+        account_number=payload.payout.account_number,
+        account_name=payload.payout.account_name,
     )
 
     await db.commit()
 
+    full_worker = await get_worker_with_payout(db, str(worker["id"]))
     token = create_access_token(str(worker["id"]))
 
     return TokenResponse(
         access_token=token,
-        worker=build_worker_response(worker, payout),
+        worker=build_worker_response(full_worker),
     )
 
 
@@ -117,28 +117,14 @@ async def login(
             detail="Incorrect phone number or password",
         )
 
-    worker_with_payout = await get_worker_with_payout(
+    full_worker = await get_worker_with_payout(
         db, str(worker["id"])
     )
-
-    payout = None
-    if worker_with_payout and worker_with_payout["payout_id"]:
-        payout_data = {
-            "id": worker_with_payout["payout_id"],
-            "method": worker_with_payout["payout_method"],
-            "telebirr_phone": worker_with_payout.get("telebirr_phone"),
-            "bank_name": worker_with_payout.get("bank_name"),
-            "account_number": worker_with_payout.get("account_number"),
-            "account_name": worker_with_payout.get("account_name"),
-        }
-    else:
-        payout_data = None
-
     token = create_access_token(str(worker["id"]))
 
     return TokenResponse(
         access_token=token,
-        worker=build_worker_response(worker_with_payout, payout_data),
+        worker=build_worker_response(full_worker),
     )
 
 
@@ -147,19 +133,7 @@ async def get_me(
     current_worker=Depends(get_current_worker),
     db: AsyncConnection = Depends(get_db),
 ):
-    worker_with_payout = await get_worker_with_payout(
+    full_worker = await get_worker_with_payout(
         db, str(current_worker["id"])
     )
-
-    payout_data = None
-    if worker_with_payout and worker_with_payout.get("payout_id"):
-        payout_data = {
-            "id": worker_with_payout["payout_id"],
-            "method": worker_with_payout["payout_method"],
-            "telebirr_phone": worker_with_payout.get("telebirr_phone"),
-            "bank_name": worker_with_payout.get("bank_name"),
-            "account_number": worker_with_payout.get("account_number"),
-            "account_name": worker_with_payout.get("account_name"),
-        }
-
-    return build_worker_response(worker_with_payout, payout_data)
+    return build_worker_response(full_worker)
