@@ -11,6 +11,7 @@ class Settings(BaseSettings):
 
     chapa_secret_key: str
     chapa_env: str = "sandbox"
+    chapa_webhook_secret: str = ""
 
     app_name: str = "QuickTip"
     platform_fee_percent: float = 2.0

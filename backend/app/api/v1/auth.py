@@ -1,25 +1,66 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from psycopg import AsyncConnection
 
-from app.api.v1.deps import get_current_worker
 from app.core.database import get_db
-from app.db.queries.workers import create_worker, get_worker_by_phone
 from app.models.schemas import (
-    TokenResponse,
-    WorkerLogin,
     WorkerRegister,
+    WorkerLogin,
+    TokenResponse,
     WorkerResponse,
+    PayoutAccountResponse,
 )
+from app.db.queries.workers import (
+    create_worker,
+    get_worker_by_phone,
+    get_worker_with_payout,
+)
+from app.db.queries.payouts import create_payout_account
 from app.services.auth_service import (
-    create_access_token,
     hash_password,
     verify_password,
+    create_access_token,
 )
+from app.api.v1.deps import get_current_worker
 
 router = APIRouter()
 
 
-@router.post("/register", response_model=TokenResponse, status_code=201)
+def build_worker_response(row) -> WorkerResponse:
+    data = dict(row)
+
+    payout = None
+    if data.get("payout_id"):
+        payout = PayoutAccountResponse(
+            id=data["payout_id"],
+            method=data["payout_method"],
+            telebirr_phone=data.get("telebirr_phone"),
+            bank_name=data.get("bank_name"),
+            account_number=data.get("account_number"),
+            account_name=data.get("account_name"),
+            is_default=bool(data.get("is_default")),
+            created_at=data["payout_created_at"],
+        )
+
+    return WorkerResponse(
+        id=data["id"],
+        name=data["name"],
+        phone=data["phone"],
+        email=data.get("email"),
+        profession=data.get("profession"),
+        avatar_url=data.get("avatar_url"),
+        qr_code_url=data.get("qr_code_url"),
+        nfc_enabled=data["nfc_enabled"],
+        is_active=data["is_active"],
+        created_at=data["created_at"],
+        payout_account=payout,
+    )
+
+
+@router.post(
+    "/register",
+    response_model=TokenResponse,
+    status_code=201,
+)
 async def register(
     payload: WorkerRegister,
     db: AsyncConnection = Depends(get_db),
@@ -42,13 +83,25 @@ async def register(
         profession=payload.profession,
     )
 
+    await create_payout_account(
+        db=db,
+        worker_id=str(worker["id"]),
+        method=payload.payout.method,
+        is_default=True,
+        telebirr_phone=payload.payout.telebirr_phone,
+        bank_name=payload.payout.bank_name,
+        account_number=payload.payout.account_number,
+        account_name=payload.payout.account_name,
+    )
+
     await db.commit()
 
+    full_worker = await get_worker_with_payout(db, str(worker["id"]))
     token = create_access_token(str(worker["id"]))
 
     return TokenResponse(
         access_token=token,
-        worker=WorkerResponse(**dict(worker)),
+        worker=build_worker_response(full_worker),
     )
 
 
@@ -59,23 +112,31 @@ async def login(
 ):
     worker = await get_worker_by_phone(db, payload.phone)
 
-    if not worker or not verify_password(payload.password, worker["password_hash"]):
+    if not worker or not verify_password(
+        payload.password, worker["password_hash"]
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect phone number or password",
         )
 
+    full_worker = await get_worker_with_payout(
+        db, str(worker["id"])
+    )
     token = create_access_token(str(worker["id"]))
-
-    worker_data = dict(worker)
-    worker_data.pop("password_hash")
 
     return TokenResponse(
         access_token=token,
-        worker=WorkerResponse(**worker_data),
+        worker=build_worker_response(full_worker),
     )
 
 
 @router.get("/me", response_model=WorkerResponse)
-async def get_me(current_worker=Depends(get_current_worker)):
-    return WorkerResponse(**dict(current_worker))
+async def get_me(
+    current_worker=Depends(get_current_worker),
+    db: AsyncConnection = Depends(get_db),
+):
+    full_worker = await get_worker_with_payout(
+        db, str(current_worker["id"])
+    )
+    return build_worker_response(full_worker)
