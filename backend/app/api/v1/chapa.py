@@ -1,7 +1,10 @@
 import asyncio
-from fastapi import APIRouter, Depends, Request
+import hmac
+import hashlib
+from fastapi import APIRouter, Depends, Request, HTTPException
 from psycopg import AsyncConnection
 
+from app.core.config import get_settings
 from app.core.database import get_db, pool
 from app.db.queries.tips import (
     get_session_by_tx_ref,
@@ -15,14 +18,35 @@ from app.services.websocket_manager import manager
 from app.services.chapa_service import verify_payment
 from app.services.payout_service import payout_with_retry
 
+settings = get_settings()
 router = APIRouter()
 
+
+def verify_chapa_signature(payload: bytes, signature: str) -> bool:
+    if not settings.chapa_webhook_secret:
+        return True
+    expected = hmac.new(
+        settings.chapa_webhook_secret.encode(),
+        payload,
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature)
+    
+@router.get("/webhook")
+async def chapa_webhook_verify():
+    return {"status": "ok"}
 
 @router.post("/webhook")
 async def chapa_webhook(
     request: Request,
     db: AsyncConnection = Depends(get_db),
 ):
+    raw_body = await request.body()
+    signature = request.headers.get("x-chapa-signature", "")
+
+    if signature and not verify_chapa_signature(raw_body, signature):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
     try:
         body = await request.json()
     except Exception:
@@ -90,8 +114,10 @@ async def chapa_webhook(
 
     await update_session_status(db, session_id, "completed")
 
-    fee_percent = 2.0
-    worker_payout_amount = round(amount * (1 - fee_percent / 100), 2)
+    fee_percent = settings.platform_fee_percent
+    worker_payout_amount = round(
+        amount * (1 - fee_percent / 100), 2
+    )
 
     payout = await create_payout(
         db=db,
