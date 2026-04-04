@@ -6,6 +6,7 @@ async def create_payout_account(
     db: AsyncConnection,
     worker_id: str,
     method: str,
+    is_default: bool = False,
     telebirr_phone: Optional[str] = None,
     bank_name: Optional[str] = None,
     account_number: Optional[str] = None,
@@ -15,14 +16,17 @@ async def create_payout_account(
         """
         INSERT INTO payout_accounts
             (worker_id, method, telebirr_phone,
-             bank_name, account_number, account_name)
-        VALUES (%s, %s, %s, %s, %s, %s)
+             bank_name, account_number, account_name,
+             is_default)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
         RETURNING id, worker_id, method, telebirr_phone,
-                  bank_name, account_number, account_name
+                  bank_name, account_number, account_name,
+                  is_default, created_at
         """,
         (
             worker_id, method, telebirr_phone,
-            bank_name, account_number, account_name
+            bank_name, account_number, account_name,
+            is_default,
         )
     )
     return await row.fetchone()
@@ -35,15 +39,105 @@ async def get_payout_account(
     row = await db.execute(
         """
         SELECT id, worker_id, method, telebirr_phone,
-               bank_name, account_number, account_name
+               bank_name, account_number, account_name,
+               is_default, created_at
         FROM payout_accounts
-        WHERE worker_id = %s AND is_active = true
-        ORDER BY created_at DESC
+        WHERE worker_id = %s
+          AND is_default = true
+          AND is_active = true
         LIMIT 1
         """,
         (worker_id,)
     )
     return await row.fetchone()
+
+
+async def get_all_payout_accounts(
+    db: AsyncConnection,
+    worker_id: str,
+):
+    rows = await db.execute(
+        """
+        SELECT id, worker_id, method, telebirr_phone,
+               bank_name, account_number, account_name,
+               is_default, created_at
+        FROM payout_accounts
+        WHERE worker_id = %s
+          AND is_active = true
+        ORDER BY is_default DESC, created_at ASC
+        """,
+        (worker_id,)
+    )
+    return await rows.fetchall()
+
+
+async def get_payout_account_by_id(
+    db: AsyncConnection,
+    account_id: str,
+    worker_id: str,
+):
+    row = await db.execute(
+        """
+        SELECT id, worker_id, method, telebirr_phone,
+               bank_name, account_number, account_name,
+               is_default, created_at
+        FROM payout_accounts
+        WHERE id = %s
+          AND worker_id = %s
+          AND is_active = true
+        """,
+        (account_id, worker_id)
+    )
+    return await row.fetchone()
+
+
+async def set_default_payout_account(
+    db: AsyncConnection,
+    account_id: str,
+    worker_id: str,
+):
+    await db.execute(
+        """
+        UPDATE payout_accounts
+        SET is_default = false
+        WHERE worker_id = %s
+          AND is_active = true
+          AND is_default = true
+        """,
+        (worker_id,)
+    )
+
+    row = await db.execute(
+        """
+        UPDATE payout_accounts
+        SET is_default = true
+        WHERE id = %s
+          AND worker_id = %s
+          AND is_active = true
+        RETURNING id, worker_id, method, telebirr_phone,
+                  bank_name, account_number, account_name,
+                  is_default, created_at
+        """,
+        (account_id, worker_id)
+    )
+    return await row.fetchone()
+
+
+async def deactivate_payout_account(
+    db: AsyncConnection,
+    account_id: str,
+    worker_id: str,
+):
+    await db.execute(
+        """
+        UPDATE payout_accounts
+        SET is_active = false
+        WHERE id = %s
+          AND worker_id = %s
+          AND is_default = false
+        """,
+        (account_id, worker_id)
+    )
 
 
 async def create_payout(

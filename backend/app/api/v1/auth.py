@@ -37,6 +37,8 @@ def build_worker_response(row) -> WorkerResponse:
             bank_name=data.get("bank_name"),
             account_number=data.get("account_number"),
             account_name=data.get("account_name"),
+            is_default=bool(data.get("is_default")),
+            created_at=data["payout_created_at"],
         )
 
     return WorkerResponse(
@@ -85,6 +87,7 @@ async def register(
         db=db,
         worker_id=str(worker["id"]),
         method=payload.payout.method,
+        is_default=True,
         telebirr_phone=payload.payout.telebirr_phone,
         bank_name=payload.payout.bank_name,
         account_number=payload.payout.account_number,

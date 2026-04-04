@@ -73,7 +73,9 @@ async def get_worker_with_payout(
             pa.telebirr_phone,
             pa.bank_name,
             pa.account_number,
-            pa.account_name
+            pa.account_name,
+            pa.is_default,
+            pa.created_at AS payout_created_at
         FROM workers w
         LEFT JOIN payout_accounts pa
             ON pa.worker_id = w.id AND pa.is_active = true

@@ -5,6 +5,10 @@ from datetime import datetime
 import re
 
 
+# ─────────────────────────────────────────
+# SHARED VALIDATORS
+# ─────────────────────────────────────────
+
 def validate_ethiopian_phone(v: str) -> str:
     pattern = r"^(09|07)\d{8}$|^(2519|2517)\d{8}$"
     if not re.match(pattern, v):
@@ -13,6 +17,10 @@ def validate_ethiopian_phone(v: str) -> str:
         )
     return v
 
+
+# ─────────────────────────────────────────
+# PAYOUT ACCOUNT SCHEMAS
+# ─────────────────────────────────────────
 
 class PayoutAccountCreate(BaseModel):
     method: str
@@ -52,6 +60,26 @@ class PayoutAccountCreate(BaseModel):
         return self
 
 
+class PayoutAccountResponse(BaseModel):
+    id: UUID
+    method: str
+    telebirr_phone: Optional[str] = None
+    bank_name: Optional[str] = None
+    account_number: Optional[str] = None
+    account_name: Optional[str] = None
+    is_default: bool
+    created_at: datetime
+
+
+class PayoutAccountListResponse(BaseModel):
+    accounts: list[PayoutAccountResponse]
+    total: int
+
+
+# ─────────────────────────────────────────
+# WORKER SCHEMAS
+# ─────────────────────────────────────────
+
 class WorkerRegister(BaseModel):
     name: str
     phone: str
@@ -85,13 +113,17 @@ class WorkerLogin(BaseModel):
     password: str
 
 
-class PayoutAccountResponse(BaseModel):
-    id: UUID
-    method: str
-    telebirr_phone: Optional[str] = None
-    bank_name: Optional[str] = None
-    account_number: Optional[str] = None
-    account_name: Optional[str] = None
+class WorkerProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    profession: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v):
+        if v is not None and len(v.strip()) < 2:
+            raise ValueError("Name must be at least 2 characters")
+        return v.strip() if v else v
 
 
 class WorkerResponse(BaseModel):
@@ -108,25 +140,6 @@ class WorkerResponse(BaseModel):
     payout_account: Optional[PayoutAccountResponse] = None
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    worker: WorkerResponse
-
-
-class WorkerProfileUpdate(BaseModel):
-    name: Optional[str] = None
-    profession: Optional[str] = None
-    email: Optional[EmailStr] = None
-
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, v):
-        if v is not None and len(v.strip()) < 2:
-            raise ValueError("Name must be at least 2 characters")
-        return v.strip() if v else v
-
-
 class PublicWorkerResponse(BaseModel):
     id: UUID
     name: str
@@ -135,10 +148,20 @@ class PublicWorkerResponse(BaseModel):
     qr_code_url: Optional[str] = None
 
 
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    worker: WorkerResponse
+
+
 class QRCodeResponse(BaseModel):
     qr_code_url: str
     tip_url: str
 
+
+# ─────────────────────────────────────────
+# TIP SCHEMAS
+# ─────────────────────────────────────────
 
 class TipInitiate(BaseModel):
     worker_id: str
@@ -178,11 +201,19 @@ class TipSessionResponse(BaseModel):
     checkout_url: Optional[str] = None
 
 
+# ─────────────────────────────────────────
+# CHAPA SCHEMAS
+# ─────────────────────────────────────────
+
 class ChapaWebhookPayload(BaseModel):
     event: Optional[str] = None
     tx_ref: str
     status: str
 
+
+# ─────────────────────────────────────────
+# WEBSOCKET SCHEMAS
+# ─────────────────────────────────────────
 
 class WebSocketMessage(BaseModel):
     type: str
