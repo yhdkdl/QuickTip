@@ -3,10 +3,41 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../core/auth/auth_provider.dart';
+import '../../core/api/dashboard_api.dart';
+import '../../core/models/tip.dart';
 import '../../core/constants.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final DashboardApi _api = DashboardApi();
+  DashboardData? _data;
+  bool _loadingData = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboard();
+  }
+
+  Future<void> _loadDashboard() async {
+    try {
+      final result = await _api.getEarnings();
+      if (mounted) {
+        setState(() {
+          _data = DashboardData.fromJson(result);
+          _loadingData = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingData = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,22 +48,28 @@ class HomeScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppConstants.surface,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildTopBar(context, worker.initials, worker.name),
-              const SizedBox(height: 28),
-              _buildGreeting(worker.name, worker.profession),
-              const SizedBox(height: 24),
-              _buildEarningsCard(),
-              const SizedBox(height: 20),
-              _buildQuickActions(context),
-              const SizedBox(height: 28),
-              _buildRecentActivity(),
-            ],
+      body: RefreshIndicator(
+        onRefresh: _loadDashboard,
+        color: AppConstants.brandGreen,
+        backgroundColor: AppConstants.surface2,
+        child: SafeArea(
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildTopBar(context, worker.initials, worker.name),
+                const SizedBox(height: 28),
+                _buildGreeting(worker.name, worker.profession),
+                const SizedBox(height: 24),
+                _buildEarningsCard(),
+                const SizedBox(height: 20),
+                _buildQuickActions(context),
+                const SizedBox(height: 28),
+                _buildRecentActivity(),
+              ],
+            ),
           ),
         ),
       ),
@@ -75,10 +112,7 @@ class HomeScreen extends StatelessWidget {
         ),
         Row(
           children: [
-            _buildIconButton(
-              Icons.notifications_outlined,
-              () {},
-            ),
+            _buildIconButton(Icons.notifications_outlined, () {}),
             const SizedBox(width: 8),
             GestureDetector(
               onTap: () async {
@@ -90,7 +124,9 @@ class HomeScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AppConstants.surface3,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppConstants.borderColor),
+                  border: Border.all(
+                    color: AppConstants.borderColor,
+                  ),
                 ),
                 child: Center(
                   child: Text(
@@ -121,7 +157,11 @@ class HomeScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppConstants.borderColor),
         ),
-        child: Icon(icon, color: AppConstants.textSecondary, size: 20),
+        child: Icon(
+          icon,
+          color: AppConstants.textSecondary,
+          size: 20,
+        ),
       ),
     );
   }
@@ -162,7 +202,10 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildEarningsCard() {
-    final formatter = NumberFormat('#,##0.00');
+    final f = NumberFormat('#,##0.00');
+    final allTime = _data?.earnings.allTime;
+    final today = _data?.earnings.today;
+    final week = _data?.earnings.thisWeek;
 
     return Container(
       width: double.infinity,
@@ -217,27 +260,47 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            'ETB ${formatter.format(0)}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 36,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -1,
-            ),
-          ),
+          _loadingData
+              ? const SizedBox(
+                  height: 44,
+                  child: Center(
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        color: Colors.white54,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  ),
+                )
+              : Text(
+                  'ETB ${f.format(allTime?.total ?? 0)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 36,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -1,
+                  ),
+                ),
           const SizedBox(height: 20),
           Row(
             children: [
-              _buildMiniStat('Today', 'ETB 0.00'),
-              const SizedBox(width: 1),
+              _buildMiniStat(
+                'Today',
+                _loadingData ? '...' : 'ETB ${f.format(today?.total ?? 0)}',
+              ),
+              const SizedBox(width: 16),
               Container(
                 width: 1,
                 height: 32,
                 color: Colors.white24,
               ),
               const SizedBox(width: 16),
-              _buildMiniStat('This Week', 'ETB 0.00'),
+              _buildMiniStat(
+                'This Week',
+                _loadingData ? '...' : 'ETB ${f.format(week?.total ?? 0)}',
+              ),
               const SizedBox(width: 16),
               Container(
                 width: 1,
@@ -245,7 +308,10 @@ class HomeScreen extends StatelessWidget {
                 color: Colors.white24,
               ),
               const SizedBox(width: 16),
-              _buildMiniStat('Tips', '0'),
+              _buildMiniStat(
+                'Tips',
+                _loadingData ? '...' : '${allTime?.count ?? 0}',
+              ),
             ],
           ),
         ],
@@ -297,21 +363,21 @@ class HomeScreen extends StatelessWidget {
               icon: Icons.qr_code_rounded,
               label: 'My QR Code',
               color: const Color(0xFF6C63FF),
-              onTap: () => context.push('/qr'), // ← was () {}
+              onTap: () => context.push('/qr'),
             ),
             const SizedBox(width: 12),
             _buildActionCard(
               icon: Icons.contactless_rounded,
               label: 'NFC Tap',
               color: const Color(0xFF00B4D8),
-              onTap: () => context.push('/nfc'), // ← was () {}
+              onTap: () => context.push('/nfc'),
             ),
             const SizedBox(width: 12),
             _buildActionCard(
               icon: Icons.bar_chart_rounded,
               label: 'Earnings',
               color: const Color(0xFFFF9500),
-              onTap: () {}, // Sprint 7
+              onTap: () => context.push('/earnings'),
             ),
           ],
         ),
@@ -379,53 +445,160 @@ class HomeScreen extends StatelessWidget {
                 letterSpacing: 1,
               ),
             ),
-            Text(
-              'See all',
-              style: TextStyle(
-                color: AppConstants.brandGreen,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+            GestureDetector(
+              onTap: () => context.push('/earnings'),
+              child: Text(
+                'See all',
+                style: TextStyle(
+                  color: AppConstants.brandGreen,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(24),
+        const SizedBox(height: 12),
+        if (_loadingData)
+          _buildShimmerList()
+        else if (_data == null || _data!.recentTips.isEmpty)
+          _buildEmptyState()
+        else
+          Column(
+            children: _data!.recentTips
+                .map((tip) => _buildRecentTipItem(tip))
+                .toList(),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildShimmerList() {
+    return Column(
+      children: List.generate(
+        3,
+        (_) => Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          height: 72,
           decoration: BoxDecoration(
             color: AppConstants.surface2,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppConstants.borderColor),
-          ),
-          child: Column(
-            children: [
-              Icon(
-                Icons.inbox_outlined,
-                color: AppConstants.textMuted,
-                size: 36,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'No tips yet',
-                style: TextStyle(
-                  color: AppConstants.textSecondary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Share your QR code to start receiving tips',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppConstants.textMuted,
-                  fontSize: 13,
-                ),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(16),
           ),
         ),
-      ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppConstants.surface2,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppConstants.borderColor),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.inbox_outlined,
+            color: AppConstants.textMuted,
+            size: 36,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No tips yet',
+            style: TextStyle(
+              color: AppConstants.textSecondary,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Share your QR code to start\nreceiving tips',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppConstants.textMuted,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentTipItem(TipHistoryItem tip) {
+    final f = NumberFormat('#,##0.00');
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: AppConstants.surface2,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppConstants.borderColor),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: tip.isQr
+                  ? const Color(0xFF6C63FF).withOpacity(0.12)
+                  : const Color(0xFF00B4D8).withOpacity(0.12),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(
+              tip.isQr ? Icons.qr_code_rounded : Icons.contactless_rounded,
+              color:
+                  tip.isQr ? const Color(0xFF6C63FF) : const Color(0xFF00B4D8),
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ETB ${f.format(tip.workerPayout)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  tip.relativeDate,
+                  style: TextStyle(
+                    color: AppConstants.textMuted,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 4,
+            ),
+            decoration: BoxDecoration(
+              color: AppConstants.brandGreen.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              tip.isQr ? 'QR' : 'NFC',
+              style: TextStyle(
+                color: AppConstants.brandGreen,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

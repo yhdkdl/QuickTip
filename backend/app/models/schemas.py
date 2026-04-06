@@ -223,3 +223,40 @@ class WebSocketMessage(BaseModel):
     worker_name: Optional[str] = None
     payment_reference: Optional[str] = None
     message: str
+
+
+class TipHistoryItem(BaseModel):
+    id: str
+    gross_amount: float
+    platform_fee: float
+    worker_payout: float
+    payment_reference: str
+    initiated_via: str
+    created_at: datetime
+
+
+class PeriodEarnings(BaseModel):
+    total: float
+    count: int
+
+
+class EarningsSummary(BaseModel):
+    all_time: PeriodEarnings
+    today: PeriodEarnings
+    this_week: PeriodEarnings
+    this_month: PeriodEarnings
+    average_tip: float
+    largest_tip: float
+
+
+class DashboardResponse(BaseModel):
+    earnings: EarningsSummary
+    recent_tips: list[TipHistoryItem]
+
+
+class TipHistoryResponse(BaseModel):
+    tips: list[TipHistoryItem]
+    total: int
+    page: int
+    page_size: int
+    has_more: bool   
