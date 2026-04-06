@@ -297,21 +297,21 @@ class HomeScreen extends StatelessWidget {
               icon: Icons.qr_code_rounded,
               label: 'My QR Code',
               color: const Color(0xFF6C63FF),
-              onTap: () {},
+              onTap: () => context.push('/qr'), // ← was () {}
             ),
             const SizedBox(width: 12),
             _buildActionCard(
               icon: Icons.contactless_rounded,
               label: 'NFC Tap',
               color: const Color(0xFF00B4D8),
-              onTap: () {},
+              onTap: () => context.push('/nfc'), // ← was () {}
             ),
             const SizedBox(width: 12),
             _buildActionCard(
               icon: Icons.bar_chart_rounded,
               label: 'Earnings',
               color: const Color(0xFFFF9500),
-              onTap: () {},
+              onTap: () {}, // Sprint 7
             ),
           ],
         ),

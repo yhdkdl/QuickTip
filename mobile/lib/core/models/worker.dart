@@ -92,4 +92,6 @@ class Worker {
     }
     return name[0].toUpperCase();
   }
+
+  bool get hasQrCode => qrCodeUrl != null && qrCodeUrl!.isNotEmpty;
 }
