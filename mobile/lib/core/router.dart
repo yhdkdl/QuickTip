@@ -7,6 +7,8 @@ import '../features/onboarding/onboarding_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/register_screen.dart';
 import '../features/home/home_screen.dart';
+import '../features/qr/qr_screen.dart';
+import '../features/nfc/nfc_screen.dart';
 
 GoRouter createRouter(AuthProvider authProvider) {
   return GoRouter(
@@ -17,7 +19,6 @@ GoRouter createRouter(AuthProvider authProvider) {
       final location = state.matchedLocation;
 
       if (location == '/splash') return null;
-
       if (status == AuthStatus.unknown) return '/splash';
 
       if (status == AuthStatus.unauthenticated) {
@@ -57,6 +58,14 @@ GoRouter createRouter(AuthProvider authProvider) {
       GoRoute(
         path: '/home',
         builder: (_, __) => const HomeScreen(),
+      ),
+      GoRoute(
+        path: '/qr',
+        builder: (_, __) => const QrScreen(),
+      ),
+      GoRoute(
+        path: '/nfc',
+        builder: (_, __) => const NfcScreen(),
       ),
     ],
   );
