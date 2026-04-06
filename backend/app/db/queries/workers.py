@@ -2,6 +2,16 @@ from psycopg import AsyncConnection
 from typing import Optional
 
 
+def _normalize_phone(phone: str) -> str:
+    digits = phone.replace("+", "").replace(" ", "")
+    digits = "".join(ch for ch in digits if ch.isdigit())
+
+    if digits.startswith("0") and len(digits) == 10:
+        return f"251{digits[1:]}"
+
+    return digits
+
+
 async def create_worker(
     db: AsyncConnection,
     name: str,
@@ -28,15 +38,23 @@ async def get_worker_by_phone(
     db: AsyncConnection,
     phone: str,
 ):
+    normalized_phone = _normalize_phone(phone)
+
     row = await db.execute(
         """
         SELECT id, name, phone, email, profession,
                avatar_url, qr_code_url, nfc_enabled,
                is_active, created_at, password_hash
         FROM workers
-        WHERE phone = %s AND is_active = true
+        WHERE
+            CASE
+                WHEN regexp_replace(phone, '\\D', '', 'g') ~ '^0[0-9]{9}$' THEN
+                    '251' || substring(regexp_replace(phone, '\\D', '', 'g') from 2)
+                ELSE regexp_replace(phone, '\\D', '', 'g')
+            END = %s
+            AND is_active = true
         """,
-        (phone,)
+        (normalized_phone,)
     )
     return await row.fetchone()
 
