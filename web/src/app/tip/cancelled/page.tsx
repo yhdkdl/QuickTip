@@ -21,14 +21,14 @@ function CancelledContent() {
                 Payment Cancelled
             </h2>
             <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                No worries — your payment was not processed.
+                Your payment was not processed.
             </p>
             <button
                 onClick={() => router.back()}
-                className="mt-6 px-6 py-2.5 rounded-xl text-sm font-semibold text-white"
+                className="mt-6 px-6 py-3 rounded-xl text-sm font-bold text-white transition-all hover:scale-105 active:scale-95"
                 style={{ background: "var(--brand-green)" }}
             >
-                Try Again
+                No worries, try again
             </button>
         </div>
     );
@@ -40,7 +40,7 @@ export default function CancelledPage() {
             className="min-h-screen flex flex-col items-center justify-center p-4"
             style={{ background: "var(--surface)" }}
         >
-            <div className="w-full max-w-sm">
+            <div className="w-full max-w-[420px] relative z-10">
                 <div className="flex items-center justify-center gap-2 mb-8">
                     <div
                         className="w-8 h-8 rounded-lg flex items-center justify-center"

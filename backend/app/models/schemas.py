@@ -260,3 +260,17 @@ class TipHistoryResponse(BaseModel):
     page: int
     page_size: int
     has_more: bool   
+
+class NotificationResponse(BaseModel):
+    id: UUID
+    worker_id: UUID
+    title: str
+    message: str
+    is_read: bool
+    created_at: datetime
+
+
+class NotificationListResponse(BaseModel):
+    notifications: list[NotificationResponse]
+    unread_count: int
+    total: int

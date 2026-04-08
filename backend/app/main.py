@@ -5,8 +5,7 @@ from contextlib import asynccontextmanager
 
 from app.core.config import get_settings
 from app.core.database import connect_db, disconnect_db
-from app.api.v1 import auth, workers, tips, chapa, websocket
-from app.api.v1 import auth, workers, tips, chapa, websocket, dashboard
+from app.api.v1 import auth, workers, tips, chapa, websocket, dashboard, notifications
 
 settings = get_settings()
 
@@ -46,6 +45,11 @@ app.include_router(tips.router, prefix="/api/v1/tips", tags=["Tips"])
 app.include_router(chapa.router, prefix="/api/v1/chapa", tags=["Chapa"])
 app.include_router(dashboard.router,prefix="/api/v1/dashboard", tags=["Dashboard"])
 app.include_router(websocket.router, tags=["WebSocket"])
+app.include_router(
+    notifications.router,
+    prefix="/api/v1/notifications",
+    tags=["Notifications"]
+)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

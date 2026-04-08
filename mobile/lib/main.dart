@@ -5,13 +5,19 @@ import 'core/api/api_client.dart';
 import 'core/auth/auth_provider.dart';
 import 'core/router.dart';
 import 'core/constants.dart';
+import 'core/services/notification_service.dart';
+import 'core/services/websocket_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   ApiClient().init();
+  await NotificationService().init();
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => AuthProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => WebSocketService()),
+      ],
       child: const QuickTipApp(),
     ),
   );
@@ -30,9 +36,19 @@ class _QuickTipAppState extends State<QuickTipApp> {
   @override
   void initState() {
     super.initState();
-    _router = createRouter(
-      context.read<AuthProvider>(),
-    );
+    _router = createRouter(context.read<AuthProvider>());
+
+    context.read<AuthProvider>().addListener(() {
+      final auth = context.read<AuthProvider>();
+      final ws = context.read<WebSocketService>();
+
+      if (auth.status == AuthStatus.authenticated &&
+          auth.worker != null) {
+        ws.connect(auth.worker!.id);
+      } else {
+        ws.disconnect();
+      }
+    });
   }
 
   @override

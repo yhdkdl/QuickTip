@@ -10,6 +10,7 @@ import '../features/home/home_screen.dart';
 import '../features/qr/qr_screen.dart';
 import '../features/nfc/nfc_screen.dart';
 import '../features/earnings/earnings_screen.dart';
+import '../features/notifications/notifications_screen.dart';
 
 GoRouter createRouter(AuthProvider authProvider) {
   return GoRouter(
@@ -71,6 +72,10 @@ GoRouter createRouter(AuthProvider authProvider) {
       GoRoute(
         path: '/earnings',
         builder: (_, __) => const EarningsScreen(),
+      ),
+      GoRoute(
+        path: '/notifications',
+        builder: (_, __) => const NotificationsScreen(),
       ),
     ],
   );

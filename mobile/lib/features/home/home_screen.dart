@@ -6,6 +6,8 @@ import '../../core/auth/auth_provider.dart';
 import '../../core/api/dashboard_api.dart';
 import '../../core/models/tip.dart';
 import '../../core/constants.dart';
+import '../../core/api/notifications_api.dart';
+import '../../core/services/websocket_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,6 +18,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final DashboardApi _api = DashboardApi();
+  final NotificationsApi _notificationsApi = NotificationsApi();
   DashboardData? _data;
   bool _loadingData = true;
 
@@ -23,6 +26,16 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadDashboard();
+    _loadUnreadCount();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    try {
+      final count = await _notificationsApi.getUnreadCount();
+      if (mounted) {
+        context.read<WebSocketService>().setUnreadCount(count);
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadDashboard() async {
@@ -59,7 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildTopBar(context, worker.initials, worker.name),
+                _buildTopBar(context, worker.initials),
                 const SizedBox(height: 28),
                 _buildGreeting(worker.name, worker.profession),
                 const SizedBox(height: 24),
@@ -76,11 +89,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildTopBar(
-    BuildContext context,
-    String initials,
-    String name,
-  ) {
+  Widget _buildTopBar(BuildContext context, String initials) {
+    final unreadCount = context.watch<WebSocketService>().unreadCount;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -112,7 +123,57 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         Row(
           children: [
-            _buildIconButton(Icons.notifications_outlined, () {}),
+            GestureDetector(
+              onTap: () => context.push('/notifications'),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: AppConstants.surface3,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppConstants.borderColor,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.notifications_outlined,
+                      color: AppConstants.textSecondary,
+                      size: 20,
+                    ),
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      top: -4,
+                      right: -4,
+                      child: Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: AppConstants.brandGreen,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppConstants.surface,
+                            width: 2,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            unreadCount > 9 ? '9+' : '$unreadCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
             const SizedBox(width: 8),
             GestureDetector(
               onTap: () async {
@@ -143,26 +204,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ],
-    );
-  }
-
-  Widget _buildIconButton(IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: AppConstants.surface3,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppConstants.borderColor),
-        ),
-        child: Icon(
-          icon,
-          color: AppConstants.textSecondary,
-          size: 20,
-        ),
-      ),
     );
   }
 
