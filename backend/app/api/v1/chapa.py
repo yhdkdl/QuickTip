@@ -150,6 +150,13 @@ async def chapa_webhook(
         "message": "Payment confirmed! Thank you for your tip.",
     })
 
+    await manager.send_to_worker(worker_id, {
+        "type": "notification",
+        "title": "New Tip Received! 🎉",
+        "message": f"You received an ETB {amount:.0f} tip.",
+        "unread_count": 1,
+    })
+
     asyncio.create_task(
         payout_with_retry(
             pool=pool,
